@@ -2,37 +2,43 @@
  * Temporary playground to test each stage as we build it.
  * (Later this becomes the real framework entry point.)
  */
-import { Container } from './core/container.js';
+import { App } from './core/app.js';
+import { createPluginsProvider, getController, PluginRegistry } from './core/plugins.js';
+import type { Context } from './core/types.js';
+import articlesPlugin from './plugins/articles.js';
 
-console.log('=== Stage 1: DI Container demo ===\n');
+console.log('=== Stage 3: Plugin loader demo ===\n');
 
-const container = new Container();
+// Helper to fake a request context for testing controllers directly.
+const ctx = (body: unknown = null): Context => ({
+  params: {},
+  query: {},
+  body,
+  state: {},
+});
 
-// Register two services. Note the log lines INSIDE the factories —
-// they prove the factory does NOT run at registration time.
-container
-  .register('config', () => {
-    console.log('  [factory ran] building "config"');
-    return { port: 1337, appName: 'nano-strapi' };
-  })
-  .register('logger', (c) => {
-    console.log('  [factory ran] building "logger"');
-    // A service looking up ANOTHER service via the container:
-    const config = c.get<{ appName: string }>('config');
-    return {
-      info: (msg: string) => console.log(`  [${config.appName}] ${msg}`),
-    };
-  });
+async function main() {
+  // The app is built from providers. The plugins provider carries our plugin
+  // definitions (plain data) and loads them during the lifecycle.
+  const app = new App([createPluginsProvider([articlesPlugin])]);
 
-console.log('1) Registered "config" and "logger". Notice: no factory ran yet.\n');
+  await app.load();
 
-console.log('2) Now calling get("logger") for the first time:');
-const logger = container.get<{ info: (m: string) => void }>('logger');
-console.log('   -> logger built. It pulled "config" itself via the container.\n');
+  // 1) The registry collected our plugin.
+  const plugins = app.get<PluginRegistry>('plugins');
+  console.log('\n1) Loaded plugins:', plugins.all().map((p) => p.name));
 
-console.log('3) Using the logger:');
-logger.info('Hello from a lazily-built service!');
+  // 2) Resolve a controller from a STRING — this is the key trick.
+  console.log('\n2) Resolving controller "articles.article" from a string...');
+  const articleController = getController(app, 'articles.article');
+  console.log('   -> got controller with actions:', articleController.find(ctx()));
 
-console.log('\n4) Calling get("logger") again — factory should NOT run (cached):');
-const logger2 = container.get('logger');
-console.log('   -> same instance?', logger === logger2);
+  // 3) Call its actions. The controller uses its service via DI internally.
+  console.log('\n3) Calling actions:');
+  console.log('   find() (empty):', articleController.find(ctx()));
+  console.log('   create({title}):', articleController.create(ctx({ title: 'Hello nano-strapi' })));
+  console.log('   create({title}):', articleController.create(ctx({ title: 'Second post' })));
+  console.log('   find() (now):', articleController.find(ctx()));
+}
+
+main();
