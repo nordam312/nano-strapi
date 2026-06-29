@@ -50,15 +50,42 @@ export type Controller = Record<string, Action>;
 export type ControllerFactory = (app: App) => Controller;
 export type ServiceFactory = (app: App) => Record<string, unknown>;
 
+/** HTTP methods we support. */
+export type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+/**
+ * Per-route config. `policies` and `middlewares` are just NAMES here —
+ * declarative, like Strapi's route config. They get resolved to functions
+ * in Stage 5 (the onion middleware). Empty/ignored until then.
+ */
+export interface RouteConfig {
+  policies?: string[];
+  middlewares?: string[];
+}
+
+/**
+ * A Route is DATA describing one endpoint. The `handler` is a STRING
+ * ("<controller>.<action>", e.g. "article.find") — the framework resolves
+ * it to a real function at boot, exactly like Strapi's route files.
+ */
+export interface Route {
+  method: Method;
+  path: string;
+  handler: string;
+  config?: RouteConfig;
+  /** Filled in by the loader so the handler string can be resolved. */
+  info?: { pluginName: string };
+}
+
 /**
  * A Plugin is a self-contained feature, defined as PLAIN DATA.
- * It just declares what it has — controllers, services, lifecycle hooks.
+ * It just declares what it has — routes, controllers, services, lifecycle hooks.
  * The framework's loader (Stage 3) collects all of this into the container.
  * Mirrors Strapi's `defaultPlugin` shape (loaders/plugins/index.ts:18).
- * (`routes` are added in Stage 4.)
  */
 export interface Plugin {
   name: string;
+  routes?: Route[];
   controllers?: Record<string, ControllerFactory>;
   services?: Record<string, ServiceFactory>;
   register?(app: App): void | Promise<void>;

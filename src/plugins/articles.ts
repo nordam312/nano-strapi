@@ -14,6 +14,7 @@ import { getService } from '../core/plugins.js';
 /** Shape of our article service, so the controller can be typed. */
 interface ArticleService {
   findAll(): Article[];
+  findOne(id: number): Article | undefined;
   create(data: { title: string }): Article;
 }
 interface Article {
@@ -24,6 +25,14 @@ interface Article {
 const articlesPlugin: Plugin = {
   name: 'articles',
 
+  // ROUTES = declarative DATA. `handler` is a "controller.action" string the
+  // framework resolves to a function at boot — exactly like Strapi route files.
+  routes: [
+    { method: 'GET', path: '/articles', handler: 'article.find' },
+    { method: 'POST', path: '/articles', handler: 'article.create' },
+    { method: 'GET', path: '/articles/:id', handler: 'article.findOne' },
+  ],
+
   // SERVICE = business logic. A factory receiving the app.
   // Here it owns an in-memory store (stands in for the database).
   services: {
@@ -31,6 +40,7 @@ const articlesPlugin: Plugin = {
       const store: Article[] = [];
       return {
         findAll: () => store,
+        findOne: (id: number) => store.find((a) => a.id === id),
         create: (data: { title: string }) => {
           const article = { id: store.length + 1, title: data.title };
           store.push(article);
@@ -50,6 +60,11 @@ const articlesPlugin: Plugin = {
       return {
         find: () => {
           return service.findAll();
+        },
+        findOne: (ctx) => {
+          // Path param ":id" arrives as a string — parse it.
+          const id = Number(ctx.params.id);
+          return service.findOne(id) ?? { error: 'Not found' };
         },
         create: (ctx) => {
           const data = ctx.body as { title: string };
