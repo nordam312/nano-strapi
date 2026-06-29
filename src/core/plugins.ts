@@ -81,6 +81,11 @@ export function createPluginsProvider(definitions: Plugin[]): Provider {
         for (const [name, factory] of Object.entries(plugin.services ?? {})) {
           registerNamespaced(app, 'service', plugin.name, name, factory);
         }
+        // Register each policy. Policies are plain functions (not factories),
+        // so we wrap them in a trivial factory that just returns the function.
+        for (const [name, policy] of Object.entries(plugin.policies ?? {})) {
+          app.add(`policy.${plugin.name}.${name}`, () => policy);
+        }
       }
 
       // Run each plugin's own register() hook (like runPluginsLifecycles).

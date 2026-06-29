@@ -29,11 +29,21 @@ export interface Provider {
  * params/query/body off it and writes its result to `body`.
  */
 export interface Context {
+  method: Method;
+  path: string;
   params: Record<string, string>;
   query: Record<string, unknown>;
   body: unknown; // request body coming in; response body going out
   state: Record<string, unknown>; // scratch space shared across middleware
+  status: number; // response status code (defaults to 200)
 }
+
+/**
+ * A Policy decides if a request may proceed. Returns true to allow,
+ * false to block (→ 403). Mirrors Strapi's policies. Resolved by name
+ * from a route's config.policies.
+ */
+export type Policy = (ctx: Context) => boolean | Promise<boolean>;
 
 /** A single controller action — e.g. `find`, `create`. */
 export type Action = (ctx: Context) => unknown | Promise<unknown>;
@@ -88,6 +98,7 @@ export interface Plugin {
   routes?: Route[];
   controllers?: Record<string, ControllerFactory>;
   services?: Record<string, ServiceFactory>;
+  policies?: Record<string, Policy>;
   register?(app: App): void | Promise<void>;
   bootstrap?(app: App): void | Promise<void>;
 }

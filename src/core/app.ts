@@ -17,6 +17,7 @@
  */
 
 import { Container } from './container.js';
+import { createServer } from './server.js';
 import type { Provider } from './types.js';
 
 export class App {
@@ -79,14 +80,19 @@ export class App {
   }
 
   /**
-   * start() = load (if needed) then "go live".
-   * For now "going live" just logs; the HTTP server arrives in a later stage.
+   * start() = load (if needed) then open the HTTP server (go live).
+   * Mirrors Strapi.start() → listen() (Strapi.ts:253 / 367).
    */
-  async start(): Promise<this> {
+  async start(port = 1337): Promise<this> {
     if (!this.isLoaded) {
       await this.load();
     }
-    console.log('🚀 nano-strapi started');
+
+    const server = createServer(this);
+    this.add('server', () => server);
+
+    await new Promise<void>((resolve) => server.listen(port, resolve));
+    console.log(`🚀 nano-strapi listening on http://localhost:${port}`);
     return this;
   }
 }

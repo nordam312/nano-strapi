@@ -26,10 +26,11 @@ function registerRoutes(app: App): Router {
       // (Strapi does the same: route.info = { pluginName }).
       route.info = { pluginName: plugin.name };
 
-      // DATA → BEHAVIOR: resolve "article.find" to the real function now.
-      const handler = composeEndpoint(app, route);
+      // DATA → BEHAVIOR: resolve "article.find" to its middleware chain
+      // (policies + action) now, while controllers are available.
+      const middlewares = composeEndpoint(app, route);
 
-      router.register(route.method, route.path, handler);
+      router.register(route.method, route.path, middlewares);
     }
   }
 

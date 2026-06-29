@@ -29,9 +29,21 @@ const articlesPlugin: Plugin = {
   // framework resolves to a function at boot — exactly like Strapi route files.
   routes: [
     { method: 'GET', path: '/articles', handler: 'article.find' },
-    { method: 'POST', path: '/articles', handler: 'article.create' },
+    // Protected: the isAuthenticated policy must pass before create() runs.
+    {
+      method: 'POST',
+      path: '/articles',
+      handler: 'article.create',
+      config: { policies: ['articles.isAuthenticated'] },
+    },
     { method: 'GET', path: '/articles/:id', handler: 'article.findOne' },
   ],
+
+  // POLICIES = guards. Return true to allow, false to block (→ 403).
+  // This one passes only if the request carried a user (set from x-user header).
+  policies: {
+    isAuthenticated: (ctx) => Boolean(ctx.state.user),
+  },
 
   // SERVICE = business logic. A factory receiving the app.
   // Here it owns an in-memory store (stands in for the database).
