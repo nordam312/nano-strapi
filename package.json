@@ -5,13 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
-  "keywords": ["framework", "plugin-system", "dependency-injection", "middleware", "typescript"],
+  "keywords": [
+    "framework",
+    "plugin-system",
+    "dependency-injection",
+    "middleware",
+    "typescript"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.9"
   }
 }

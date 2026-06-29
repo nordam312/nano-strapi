@@ -46,7 +46,8 @@ async function buildContext(req: http.IncomingMessage): Promise<Context> {
     path: url.pathname,
     params: {},
     query: Object.fromEntries(url.searchParams),
-    body,
+    request: { body }, // incoming payload
+    body: null, // response body — filled by the controller's return value
     state: { user },
     status: 200,
   };

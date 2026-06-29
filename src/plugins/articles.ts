@@ -79,7 +79,7 @@ const articlesPlugin: Plugin = {
           return service.findOne(id) ?? { error: 'Not found' };
         },
         create: (ctx) => {
-          const data = ctx.body as { title: string };
+          const data = ctx.request.body as { title: string };
           return service.create(data);
         },
       };

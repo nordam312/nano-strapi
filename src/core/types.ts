@@ -33,7 +33,8 @@ export interface Context {
   path: string;
   params: Record<string, string>;
   query: Record<string, unknown>;
-  body: unknown; // request body coming in; response body going out
+  request: { body: unknown }; // INCOMING request payload (read-only input)
+  body: unknown; // OUTGOING response body (what the controller returns)
   state: Record<string, unknown>; // scratch space shared across middleware
   status: number; // response status code (defaults to 200)
 }

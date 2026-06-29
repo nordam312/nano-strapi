@@ -46,7 +46,7 @@ const usersPlugin: Plugin = {
       const service = getService<UserService>(app, 'users.user');
       return {
         find: () => service.list(),
-        create: (ctx) => service.add(ctx.body as { name: string }),
+        create: (ctx) => service.add(ctx.request.body as { name: string }),
       };
     },
   },

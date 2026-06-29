@@ -1,8 +1,8 @@
 # nano-strapi
 
-A tiny, **zero-dependency** plugin framework built from scratch in TypeScript to study how a real headless-CMS framework ([Strapi](https://github.com/strapi/strapi)) boots and serves requests.
+A minimal, **zero-dependency** TypeScript implementation of a plugin-based framework architecture — the same design that powers [Strapi](https://github.com/strapi/strapi). It distills the core machinery most frameworks spread across thousands of files into ~600 readable lines, so the architecture is legible at a glance.
 
-It re-implements the core machinery most web frameworks hide from you:
+It implements the core machinery most web frameworks hide from you:
 
 - a **dependency-injection container** with lazy, cached services
 - a **lifecycle** (`register → bootstrap → start`) driven by **providers**
@@ -10,7 +10,7 @@ It re-implements the core machinery most web frameworks hide from you:
 - a **declarative router** where a route's `handler` is a string resolved to a function at boot
 - **onion middleware** (`compose()` / `next()`) for auth, policies, and controllers — written from scratch (no Koa/Express)
 
-> **Why this exists:** I wanted to understand *why* frameworks are structured the way they are — not just use them. So I traced Strapi's request lifecycle end-to-end and rebuilt its core in ~600 lines. Every concept here maps to a real Strapi file (see [the mapping](#how-this-maps-to-strapi)).
+> **Who this is for:** developers who want to understand how plugin-based frameworks boot and serve requests, and contributors onboarding to a large codebase like Strapi's. Every module here maps to a real Strapi file (see [the mapping](#how-this-maps-to-strapi)), so reading this small codebase is a fast on-ramp to the real one.
 
 ---
 
@@ -38,8 +38,11 @@ curl localhost:1337/users
 ```
 
 ```bash
+npm test             # run the test suite (vitest)
 npm run typecheck    # strict TypeScript, no emit
 ```
+
+The tests cover the container (lazy/cached resolution), the onion `compose()` (ordering, short-circuit, double-`next()` guard), the router (matching, `:params`), and a full end-to-end request through a loaded app (including the policy 403 short-circuit). Vitest is the only non-runtime dependency.
 
 ---
 
@@ -125,18 +128,18 @@ Every piece here mirrors a real Strapi file, so studying this is a shortcut to r
 
 ---
 
-## What I learned
+## Why the architecture looks like this
 
-- **Why frameworks separate config from code:** routes/plugins as data are trivial to read, test, and reorder. The "data → behavior" conversion happens once, at boot.
-- **Why dependency injection matters:** lazy, name-based resolution lets independent features coexist and depend on each other without import spaghetti.
-- **How middleware really works:** the onion (`next()`) is just function composition; "stopping" a request is simply not calling `next()`.
-- **Why lifecycle phases exist:** they encode the dependency order between "register everything" and "wire everything up".
+- **Config separated from code:** routes and plugins are data, which makes them trivial to read, test, and reorder. The "data → behavior" conversion happens once, at boot.
+- **Dependency injection:** lazy, name-based resolution lets independent features coexist and depend on each other without import spaghetti.
+- **Onion middleware:** the `next()` pattern is just function composition; "stopping" a request (auth, permissions) is simply not calling `next()`.
+- **Lifecycle phases:** they encode the dependency order between "register everything" and "wire everything up" — routes can't resolve controllers until controllers exist.
 
 ---
 
 ## Status & scope
 
-This is a learning project, intentionally small. It is **not** a Strapi replacement and skips a lot (real DB layer, validation, RBAC engine, admin UI, content-type schemas). The goal is to make the *architecture* legible. Each commit corresponds to one build stage, so the git history reads as a step-by-step construction of the framework.
+Intentionally minimal. This is a reference implementation, **not** a Strapi replacement — it deliberately omits the database layer, validation, the RBAC engine, the admin UI, and content-type schemas to keep the architecture in focus. Each commit corresponds to one build stage, so the git history reads as a guided construction of the framework.
 
 ## License
 
