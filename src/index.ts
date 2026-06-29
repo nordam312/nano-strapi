@@ -9,9 +9,14 @@ import { createPluginsProvider } from './core/plugins.js';
 import { createRoutingProvider } from './core/register-routes.js';
 import { Router } from './core/router.js';
 import articlesPlugin from './plugins/articles.js';
+import usersPlugin from './plugins/users.js';
 
 async function main() {
-  const app = new App([createPluginsProvider([articlesPlugin]), createRoutingProvider()]);
+  // Adding a whole feature = adding one plugin to this array. Nothing else changes.
+  const app = new App([
+    createPluginsProvider([articlesPlugin, usersPlugin]),
+    createRoutingProvider(),
+  ]);
 
   await app.start(1337);
 
