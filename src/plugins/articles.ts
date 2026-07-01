@@ -92,6 +92,52 @@ const articlesPlugin: Plugin = {
   bootstrap() {
     console.log('  [plugin:articles] bootstrap hook');
   },
+
+  // -------------------------------------------------------------------------
+  // ADMIN half — the client-side UI for this plugin. Pure DATA again: a menu
+  // link, a reusable component, and pages. The pages fetch from the server
+  // (the real full-stack loop) using Node's built-in fetch.
+  // -------------------------------------------------------------------------
+  admin: {
+    menu: [{ to: '/articles', label: 'Articles' }],
+
+    // A reusable UI component (a mini React component: props -> HTML).
+    components: {
+      ArticleCard: (props) =>
+        `<div class="card"><strong>#${props?.id}</strong> ${props?.title}</div>`,
+    },
+
+    routes: [
+      // List page: fetches all articles from the server and renders them.
+      {
+        path: '/articles',
+        component: async ({ app }) => {
+          const res = await fetch('http://localhost:1337/articles');
+          const articles = (await res.json()) as Article[];
+          const ArticleCard = app.getComponent('ArticleCard');
+
+          const cards = articles.length
+            ? articles.map((a) => ArticleCard({ id: a.id, title: a.title })).join('\n')
+            : '<p>No articles yet.</p>';
+
+          return `<h1>Articles</h1>\n${cards}`;
+        },
+      },
+      // Detail page: fetches a single article by the :id route param.
+      {
+        path: '/articles/:id',
+        component: async ({ params }) => {
+          const res = await fetch(`http://localhost:1337/articles/${params.id}`);
+          const article = (await res.json()) as Article | { error: string };
+
+          if ('error' in article) {
+            return `<h1>Article ${params.id}</h1><p>Not found.</p>`;
+          }
+          return `<h1>${article.title}</h1><p>Article #${article.id}</p>`;
+        },
+      },
+    ],
+  },
 };
 
 export default articlesPlugin;
