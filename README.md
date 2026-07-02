@@ -1,145 +1,135 @@
 # nano-strapi
 
-A minimal, **zero-dependency** TypeScript implementation of a plugin-based framework architecture — the same design that powers [Strapi](https://github.com/strapi/strapi). It distills the core machinery most frameworks spread across thousands of files into ~600 readable lines, so the architecture is legible at a glance.
+A tiny **full-stack plugin framework** built from scratch in TypeScript — a Node backend **and** a React admin — that re-implements the core architecture of [Strapi](https://github.com/strapi/strapi) in ~2,000 readable lines.
 
-It implements the core machinery most web frameworks hide from you:
+It distills the machinery most frameworks spread across thousands of files into something you can read in an afternoon: a dependency-injection container, a plugin system, a lifecycle, an onion-middleware HTTP server, and a React admin with hot reload, injection zones, and a shared design-system.
 
-- a **dependency-injection container** with lazy, cached services
-- a **lifecycle** (`register → bootstrap → start`) driven by **providers**
-- a **plugin system** that turns plain-data plugin definitions into running behavior
-- a **declarative router** where a route's `handler` is a string resolved to a function at boot
-- **onion middleware** (`compose()` / `next()`) for auth, policies, and controllers — written from scratch (no Koa/Express)
+- **Backend** — DI container, provider lifecycle (`register → bootstrap → start`), plugin loader, declarative router, onion middleware (`compose`/`next`) written from scratch, and an HTTP server on Node's built-in `http`.
+- **Admin** — a `StrapiApp`-style client with the same lifecycle and registries, React Router, **Vite HMR**, plugin-contributed menus/pages/settings, **injection zones** (plugins extend each other's UI), and a reusable **design-system**.
+- **Server/admin split** — each plugin has a server half and an admin half in **separate modules**, so browser code never bundles `node:http` and server code never bundles React.
 
-> **Who this is for:** developers who want to understand how plugin-based frameworks boot and serve requests, and contributors onboarding to a large codebase like Strapi's. Every module here maps to a real Strapi file (see [the mapping](#how-this-maps-to-strapi)), so reading this small codebase is a fast on-ramp to the real one.
+> **Who this is for:** developers who want to understand how plugin-based frameworks boot, serve requests, and assemble a UI — and contributors onboarding to a large codebase like Strapi's. Every module maps to a real Strapi file (see [the mapping](#how-this-maps-to-strapi)).
 
 ---
 
 ## Quick start
 
+Two processes, exactly like Strapi's `yarn watch` + `yarn develop`:
+
 ```bash
 npm install
-npm run dev          # starts the server on http://localhost:1337
+
+# Terminal 1 — the backend API (auto-restarts on change)
+npm run dev:server        # http://localhost:1337
+
+# Terminal 2 — the React admin with hot reload
+npm run dev:admin         # http://localhost:5173
 ```
 
-Then, in another terminal:
+Open **http://localhost:5173**: a sidebar, an Articles page (filter + table, data fetched live from the API), an Export button injected by a *different* plugin, and a Settings area.
 
 ```bash
-# Public route
-curl localhost:1337/articles
-
-# Protected route — blocked by a policy (no auth header) → 403
-curl -i -X POST localhost:1337/articles -d '{"title":"hi"}'
-
-# Same route, now authorized (toy auth: the x-user header) → 200
-curl -X POST localhost:1337/articles -H "x-user: ada" -d '{"title":"hi"}'
-
-# A second, fully independent plugin
-curl localhost:1337/users
+npm test                  # run the test suite (vitest)
+npm run typecheck         # strict TypeScript, no emit
+npm run build:admin       # production build of the admin
 ```
-
-```bash
-npm test             # run the test suite (vitest)
-npm run typecheck    # strict TypeScript, no emit
-```
-
-The tests cover the container (lazy/cached resolution), the onion `compose()` (ordering, short-circuit, double-`next()` guard), the router (matching, `:params`), and a full end-to-end request through a loaded app (including the policy 403 short-circuit). Vitest is the only non-runtime dependency.
-
----
-
-## The request lifecycle
-
-What happens when `POST /articles` arrives:
-
-```
-HTTP request
-   │
-   ▼
-http server  ──►  build ctx (method, path, query, JSON body, headers)
-   │
-   ▼
-Router.match()  ──►  find route + extract :params           (404 if none)
-   │
-   ▼
-compose([ logger, ...policies, controllerAction ])   ← the onion
-   │
-   ├─ logger            before: start timer
-   │   ├─ isAuthenticated policy   → if false: set 403, STOP (no next())
-   │   │   └─ controller.create(ctx) → service.create() → "DB"
-   │   └─ (returns up the chain)
-   └─ logger            after: log "POST /articles → 200 (1ms)"
-   │
-   ▼
-write ctx.status + JSON ctx.body
-```
-
-If a policy doesn't call `next()`, the controller never runs — that single rule is how all auth/permission middleware works.
 
 ---
 
 ## Architecture
 
 ```
+BACKEND (Node)                              ADMIN (browser)
+──────────────                              ───────────────
+src/server.ts                               src/admin/main.tsx
+  └─ new App([...plugins])                    └─ new ClientApp([...admin plugins])
+       register → bootstrap → listen                register → bootstrap → render
+       │                                            │
+   ┌───┴────────────┐                          ┌────┴───────────────┐
+   container (DI)                              menu / pages / settings
+   plugin loader                              injection zones
+   router + compose-endpoint                  RouterProvider + Layout
+   onion middleware (auth/policies)           design-system (Button/Table/TextInput)
+   http server                                Vite HMR
+
+              plugin (server half)  ◄──── same feature ────►  plugin (admin half)
+              articles.ts                                     articles.admin.tsx
+```
+
+The admin fetches from the backend over HTTP (the server sends a CORS header), so the two run and deploy independently.
+
+## Project structure
+
+```
 src/
-├── index.ts                  # entry point: build app from plugins, start it
-├── core/
-│   ├── container.ts          # DI container: register(name, factory) / get(name), lazy + cached
-│   ├── app.ts                # App class = container + lifecycle (register/bootstrap/start)
-│   ├── types.ts              # Provider, Plugin, Route, Context, Policy, ...
-│   ├── plugins.ts            # plugin loader: data → behavior; PluginRegistry; getController/getService
-│   ├── router.ts             # path matching (:params → regex), method+path lookup
-│   ├── compose-endpoint.ts   # handler string → function; builds [policies, action] chain
-│   ├── register-routes.ts    # "initRouting": walk plugins, register routes (runs after plugins load)
-│   ├── compose.ts            # onion middleware (koa-compose) from scratch
-│   └── server.ts             # Node http server: req → ctx → compose → response
+├── server.ts                 # backend entry: boot the App + seed data
+├── admin/main.tsx            # admin entry: build ClientApp, mount React
+├── core/                     # the SERVER framework
+│   ├── container.ts          #   DI container: register/get, lazy + cached
+│   ├── app.ts                #   App class = container + lifecycle
+│   ├── plugins.ts            #   plugin loader (data → behavior)
+│   ├── router.ts             #   path matching (:params → regex)
+│   ├── compose-endpoint.ts   #   handler string → [policies, action] chain
+│   ├── register-routes.ts    #   "initRouting": build routes after plugins load
+│   ├── compose.ts            #   onion middleware (koa-compose) from scratch
+│   ├── server.ts             #   Node http server: req → ctx → compose → response
+│   └── types.ts              #   Provider, Plugin, Route, Context, Policy…
+├── client/                   # the ADMIN framework
+│   ├── client-app.ts         #   ClientApp = StrapiApp: registries + lifecycle + render
+│   ├── Layout.tsx            #   app shell (sidebar + <Outlet/>)
+│   ├── SettingsLayout.tsx    #   /settings shell (sub-menu + <Outlet/>)
+│   ├── injection.tsx         #   AppContext + useApp() + <InjectionZone/>
+│   └── types.ts              #   AdminPlugin, MenuItem, Page, SettingsPage…
+├── design-system/            # shared UI library (like @strapi/design-system)
+│   ├── Button.tsx  Table.tsx  TextInput.tsx
+│   └── useSelectOnFocus.ts   #   select text on keyboard focus (contributed upstream)
 └── plugins/
-    ├── articles.ts           # example plugin: routes + controller + service + a policy
-    └── users.ts              # a second, independent plugin (proves the system composes N plugins)
+    ├── articles.ts           # articles SERVER half (routes/controllers/services/policy)
+    ├── articles.admin.tsx    # articles ADMIN half (menu/pages/settings/component)
+    ├── export.admin.tsx      # admin-only plugin: injects a button into the articles page
+    └── users.ts              # a second server plugin
 ```
 
 ### Core ideas
 
-**1. Everything is data first, behavior second.**
-A plugin is a plain object declaring what it *has* (routes, controllers, services, policies). It never wires itself. The framework collects all that data at boot and turns it into running behavior. This is why a route can say `handler: 'article.find'` — a string — and have it resolve to a real function.
+**1. Everything is data first, behavior second.** A plugin is a plain object declaring what it *has* (routes, controllers, services, menu, pages). The framework collects that data at boot and turns it into running behavior. That's why a route can say `handler: 'article.find'` (a string) and have it resolve to a real function.
 
-**2. The DI container decouples everything.**
-Services don't import each other. A controller asks the container for its service by name (`getService(app, 'articles.article')`). Swap an implementation without touching callers.
+**2. Dependency injection decouples everything.** Services don't import each other; they ask the container by name. Swap an implementation without touching callers.
 
-**3. Lifecycle phases exist for dependency ordering.**
-`register` (everyone introduces themselves) must finish before `bootstrap` (wire things up), because routes can't resolve controllers until controllers are registered. Adding a feature is one line: drop a plugin into the array in `index.ts`.
+**3. Lifecycle phases encode ordering.** `register` (everyone introduces themselves) must finish before `bootstrap` (wire things up) — routes can't resolve controllers until controllers exist. The admin uses the same two phases.
+
+**4. The server/admin split is structural.** Server and admin halves are separate modules with separate entry points, because the browser can't bundle `node:http` and the server shouldn't bundle React. Adding a feature = adding a plugin to an array; nothing else changes.
+
+**5. Injection zones make it a platform.** A page renders `<InjectionZone name="..."/>`; any plugin calls `app.injectComponent(name, C)`. Plugins extend each other's UI through a shared string, with zero cross-imports — the essence of an extensible platform.
 
 ---
 
 ## How this maps to Strapi
 
-Every piece here mirrors a real Strapi file, so studying this is a shortcut to reading the real codebase:
-
 | nano-strapi | Strapi |
 | --- | --- |
-| `core/container.ts` | `strapi.add()` / `strapi.get()` (the Strapi DI container) |
-| `core/app.ts` | the `Strapi` class (`packages/core/core/src/Strapi.ts`) |
-| `Provider` + provider loop | `packages/core/core/src/providers/` |
-| `core/plugins.ts` (loader) | `loaders/plugins/index.ts` (`loadPlugins`) |
-| `PluginRegistry` | `strapi.get('plugins')` registry |
-| `core/compose-endpoint.ts` | `services/server/compose-endpoint.ts` (`getAction`) |
-| `core/register-routes.ts` | `services/server/register-routes.ts` + `initRouting()` |
+| `core/container.ts` | `strapi.add()` / `strapi.get()` |
+| `core/app.ts` | the `Strapi` class |
+| Provider + provider loop | `packages/core/core/src/providers/` |
+| `core/plugins.ts` | `loaders/plugins/index.ts` (`loadPlugins`) |
+| `core/compose-endpoint.ts` | `services/server/compose-endpoint.ts` |
 | `core/compose.ts` | `koa-compose` |
-| `core/server.ts` | the Koa server (`services/server/`) |
-| `config.policies` on a route | Strapi route `policies` (RBAC) |
+| `core/server.ts` | the Koa server |
+| `client/client-app.ts` | `StrapiApp` (`admin/src/StrapiApp.tsx`) |
+| `admin/main.tsx` | `renderAdmin()` (`admin/src/render.ts`) |
+| `client/injection.tsx` | `InjectionZone` + `useStrapiApp` |
+| `design-system/` | `@strapi/design-system` |
+| `articles.ts` / `articles.admin.tsx` | `strapi-server` / `strapi-admin` |
 
 ---
 
 ## Why the architecture looks like this
 
-- **Config separated from code:** routes and plugins are data, which makes them trivial to read, test, and reorder. The "data → behavior" conversion happens once, at boot.
-- **Dependency injection:** lazy, name-based resolution lets independent features coexist and depend on each other without import spaghetti.
-- **Onion middleware:** the `next()` pattern is just function composition; "stopping" a request (auth, permissions) is simply not calling `next()`.
-- **Lifecycle phases:** they encode the dependency order between "register everything" and "wire everything up" — routes can't resolve controllers until controllers exist.
-
----
+A "normal" app imports everything at build time. A **framework** can't: it's extended by plugins it has never seen, installed by other people, without editing its source. The registries + lifecycle + injection zones are the **extension API** that makes that possible — the same reason VSCode, WordPress, and Webpack look "over-engineered" next to a single app. The indirection *is* the feature.
 
 ## Status & scope
 
-Intentionally minimal. This is a reference implementation, **not** a Strapi replacement — it deliberately omits the database layer, validation, the RBAC engine, the admin UI, and content-type schemas to keep the architecture in focus. Each commit corresponds to one build stage, so the git history reads as a guided construction of the framework.
+Intentionally minimal — a reference implementation, **not** a Strapi replacement. It deliberately omits a real database, validation, RBAC, i18n, content-type schemas, auth, and a build pipeline, to keep the architecture legible. Each commit corresponds to one build stage, so the git history reads as a guided construction of the framework.
 
 ## License
 
