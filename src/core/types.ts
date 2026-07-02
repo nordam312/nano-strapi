@@ -4,7 +4,6 @@
  */
 
 import type { App } from './app.js';
-import type { ClientApp } from '../client/client-app.js';
 
 /**
  * A Provider is a small module that hooks into the app's lifecycle.
@@ -89,56 +88,12 @@ export interface Route {
   info?: { pluginName: string };
 }
 
-// ---------------------------------------------------------------------------
-// Admin / client-side types (the "admin" half of a plugin).
-//
-// These mirror Strapi's server/admin split: a plugin has a server half (routes,
-// controllers, services above) AND an admin half (menu, pages, components). The
-// server runs in Node; the admin runs in the "browser". Here the browser is
-// simulated by rendering components to HTML strings (a tiny React), so the whole
-// thing still runs in the terminal with zero dependencies.
-// ---------------------------------------------------------------------------
-
-/** A UI component: takes props, returns an HTML string. (A mini React.) */
-export type Component = (props?: Record<string, unknown>) => string;
-
-/** A link in the admin's sidebar menu. */
-export interface MenuItem {
-  to: string;
-  label: string;
-}
-
-/** Context passed to a page when it renders (route params + the app). */
-export interface PageContext {
-  params: Record<string, string>;
-  app: ClientApp;
-}
-
-/** A page: given route context, returns HTML. May be async (e.g. to fetch data). */
-export type Page = (ctx: PageContext) => string | Promise<string>;
-
-/** A declarative admin route: a path mapped to a page. */
-export interface AdminRoute {
-  path: string;
-  component: Page;
-}
-
 /**
- * The admin (client) half of a plugin — declared as DATA, exactly like the
- * server half. Mirrors what a plugin registers into StrapiApp.
- */
-export interface AdminPlugin {
-  menu?: MenuItem[];
-  routes?: AdminRoute[];
-  components?: Record<string, Component>;
-  register?(app: ClientApp): void | Promise<void>;
-  bootstrap?(app: ClientApp): void | Promise<void>;
-}
-
-/**
- * A Plugin is a self-contained feature, defined as PLAIN DATA.
- * It declares its SERVER half (routes, controllers, services, policies) and,
- * optionally, its ADMIN half (`admin`) — the server/admin split.
+ * A Plugin (server half) is a self-contained feature, defined as PLAIN DATA.
+ * It declares its routes, controllers, services, policies, and lifecycle hooks.
+ * The admin (client) half lives in a SEPARATE module (see src/client/types.ts)
+ * so server code never bundles React and browser code never bundles node:http —
+ * exactly why Strapi splits strapi-server from strapi-admin.
  * Mirrors Strapi's `defaultPlugin` shape (loaders/plugins/index.ts:18).
  */
 export interface Plugin {
@@ -149,6 +104,4 @@ export interface Plugin {
   policies?: Record<string, Policy>;
   register?(app: App): void | Promise<void>;
   bootstrap?(app: App): void | Promise<void>;
-  /** The admin/client half of the plugin (menu, pages, components). */
-  admin?: AdminPlugin;
 }

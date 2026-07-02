@@ -92,6 +92,9 @@ export function createServer(app: App): http.Server {
 
     res.statusCode = ctx.status;
     res.setHeader('content-type', 'application/json');
+    // Allow the admin dev server (a different origin) to call the API.
+    // A real framework does this via a configurable CORS middleware.
+    res.setHeader('access-control-allow-origin', '*');
     res.end(JSON.stringify(ctx.body));
   });
 }

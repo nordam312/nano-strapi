@@ -2,20 +2,23 @@
  * ClientApp — the admin (client) application. The nano version of StrapiApp
  * (packages/core/admin/admin/src/StrapiApp.tsx).
  *
- * Just like the server `App` is a container with a lifecycle, ClientApp holds
- * the UI REGISTRIES (menu, components, pages) and runs the same lifecycle:
+ * Holds the UI REGISTRIES (menu, components, pages) and runs the same lifecycle:
  *
- *   register()   ← each plugin's admin half drops its menu/components/pages in
+ *   register()   ← each admin plugin drops its menu/components/pages in
  *   bootstrap()  ← plugins wire up once everything is registered
- *   render(path) ← assemble the matched page inside the app shell (the "layout")
+ *   render()     ← assemble everything into a React tree (RouterProvider)
  *
- * Compare to StrapiApp: register/bootstrap collect plugin UI, then render()
- * builds the store + router and returns <Providers><RouterProvider/></Providers>.
- * Here render() builds the menu + page and returns an HTML string.
+ * Compare to StrapiApp.render(): it builds the store + router from what plugins
+ * registered and returns <RouterProvider/>. Ours does the same, minus Redux.
  */
 
-import { ClientRouter } from './router.js';
-import type { Component, MenuItem, Page, Plugin } from '../core/types.js';
+import { createElement } from 'react';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+
+import { Layout } from './Layout.js';
+import type { AdminPlugin, Component, MenuItem, Page } from './types.js';
+
+import type { ReactElement } from 'react';
 
 export class ClientApp {
   /** Sidebar menu items (like StrapiApp.menu). */
@@ -24,12 +27,12 @@ export class ClientApp {
   /** Reusable UI components by name (like StrapiApp.components / library). */
   components: Record<string, Component> = {};
 
-  /** Maps URL paths to pages (like StrapiApp.router). */
-  private router = new ClientRouter();
+  /** Registered pages: path -> page component (like StrapiApp.router). */
+  pages: { path: string; component: Page }[] = [];
 
-  private plugins: Plugin[];
+  private plugins: AdminPlugin[];
 
-  constructor(plugins: Plugin[]) {
+  constructor(plugins: AdminPlugin[]) {
     this.plugins = plugins;
   }
 
@@ -42,16 +45,16 @@ export class ClientApp {
     this.components[name] = component;
   }
 
-  getComponent(name: string): Component {
+  getComponent<T extends Component = Component>(name: string): T {
     const component = this.components[name];
     if (!component) {
       throw new Error(`Admin component "${name}" is not registered.`);
     }
-    return component;
+    return component as T;
   }
 
-  addPage(path: string, page: Page): void {
-    this.router.add(path, page);
+  addPage(path: string, component: Page): void {
+    this.pages.push({ path, component });
   }
 
   // --- lifecycle -----------------------------------------------------------
@@ -59,16 +62,13 @@ export class ClientApp {
   /** Phase 1: collect every plugin's admin declarations + run its register(). */
   async register(): Promise<this> {
     for (const plugin of this.plugins) {
-      const admin = plugin.admin;
-      if (!admin) continue;
-
-      admin.menu?.forEach((item) => this.addMenuItem(item));
-      for (const [name, component] of Object.entries(admin.components ?? {})) {
+      plugin.menu?.forEach((item) => this.addMenuItem(item));
+      for (const [name, component] of Object.entries(plugin.components ?? {})) {
         this.addComponent(name, component);
       }
-      admin.routes?.forEach((route) => this.addPage(route.path, route.component));
+      plugin.routes?.forEach((route) => this.addPage(route.path, route.component));
 
-      await admin.register?.(this);
+      await plugin.register?.(this);
     }
     return this;
   }
@@ -76,51 +76,36 @@ export class ClientApp {
   /** Phase 2: run every plugin's admin bootstrap(). */
   async bootstrap(): Promise<this> {
     for (const plugin of this.plugins) {
-      await plugin.admin?.bootstrap?.(this);
+      await plugin.bootstrap?.(this);
     }
     return this;
   }
 
   /**
-   * Render the app for a given URL path: match the page, run it, and wrap the
-   * result in the app shell (sidebar menu + main content) — the equivalent of
-   * StrapiApp wrapping the matched page in Providers + the layout.
+   * Assemble the app into a React tree: build the router from the registered
+   * pages, nested inside a Layout (sidebar built from the menu registry).
+   * Mirrors StrapiApp.render() returning <RouterProvider/>.
    */
-  async render(path: string): Promise<string> {
-    const match = this.router.match(path);
-    const content = match
-      ? await match.page({ params: match.params, app: this })
-      : `<h1>404 — Not Found</h1><p>No page for <code>${path}</code></p>`;
+  render(): ReactElement {
+    const router = createBrowserRouter([
+      {
+        path: '/',
+        element: createElement(Layout, { menu: this.menu }),
+        children: [
+          // Redirect-ish default: send "/" to the first registered page.
+          ...(this.pages.length
+            ? [{ index: true, element: createElement(this.pages[0].component) }]
+            : []),
+          ...this.pages.map((page) => ({
+            // react-router child paths are relative to the parent ("/"),
+            // so strip a leading slash if the plugin wrote one.
+            path: page.path.replace(/^\//, ''),
+            element: createElement(page.component),
+          })),
+        ],
+      },
+    ]);
 
-    return this.layout(content, path);
-  }
-
-  /** The app shell: a sidebar built from the menu registry + the page content. */
-  private layout(content: string, activePath: string): string {
-    const links = this.menu
-      .map((item) => {
-        const active = item.to === activePath ? ' aria-current="page"' : '';
-        return `<a href="${item.to}"${active}>${item.label}</a>`;
-      })
-      .join('\n      ');
-
-    return `<!doctype html>
-<html>
-  <head><meta charset="utf-8" /><title>nano-strapi admin</title></head>
-  <body>
-    <nav class="sidebar">
-      <strong>nano-strapi</strong>
-      ${links}
-    </nav>
-    <main>
-${content}
-    </main>
-  </body>
-</html>`;
-  }
-
-  /** List registered page paths (for a route table log). */
-  listRoutes(): string[] {
-    return this.router.list();
+    return createElement(RouterProvider, { router });
   }
 }
