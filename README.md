@@ -38,25 +38,62 @@ npm run build:admin       # production build of the admin
 
 ## Architecture
 
-```
-BACKEND (Node)                              ADMIN (browser)
-──────────────                              ───────────────
-src/server.ts                               src/admin/main.tsx
-  └─ new App([...plugins])                    └─ new ClientApp([...admin plugins])
-       register → bootstrap → listen                register → bootstrap → render
-       │                                            │
-   ┌───┴────────────┐                          ┌────┴───────────────┐
-   container (DI)                              menu / pages / settings
-   plugin loader                              injection zones
-   router + compose-endpoint                  RouterProvider + Layout
-   onion middleware (auth/policies)           design-system (Button/Table/TextInput)
-   http server                                Vite HMR
+```mermaid
+flowchart TB
+    subgraph BE["Backend (Node) · src/server.ts"]
+        direction TB
+        B1["new App(providers)"] --> B2["register → bootstrap → listen"]
+        B2 --> BC["DI container"]
+        B2 --> BL["plugin loader"]
+        B2 --> BR["router + compose-endpoint"]
+        B2 --> BM["onion middleware<br/>auth · policies"]
+        B2 --> BH["http server :1337"]
+    end
 
-              plugin (server half)  ◄──── same feature ────►  plugin (admin half)
-              articles.ts                                     articles.admin.tsx
+    subgraph FE["Admin (browser) · src/admin/main.tsx"]
+        direction TB
+        A1["new ClientApp(plugins)"] --> A2["register → bootstrap → render"]
+        A2 --> AM["menu · pages · settings"]
+        A2 --> AI["injection zones"]
+        A2 --> AR["RouterProvider + Layout"]
+        A2 --> AD["design-system<br/>Button · Table · TextInput"]
+        A2 --> AH["Vite HMR"]
+    end
+
+    PS["articles.ts<br/>server half"] -. provides .-> BE
+    PA["articles.admin.tsx<br/>admin half"] -. provides .-> FE
+    PS <-->|"one feature, two halves"| PA
+    FE -->|"fetch() over HTTP + CORS"| BE
 ```
 
-The admin fetches from the backend over HTTP (the server sends a CORS header), so the two run and deploy independently.
+Same lifecycle on both sides (`register → bootstrap`), one feature split into a server half and an admin half, and the admin fetching from the backend over HTTP — so the two run and deploy independently.
+
+### Request lifecycle
+
+What happens when the admin loads the Articles page:
+
+```mermaid
+sequenceDiagram
+    participant U as Browser (admin)
+    participant S as http server
+    participant R as router
+    participant M as middleware chain
+    participant C as controller
+    participant Svc as service
+
+    U->>S: GET /articles
+    S->>R: match(method, path)
+    R-->>S: middleware chain + params
+    S->>M: compose([logger, policies, action])
+    M->>C: action(ctx)
+    C->>Svc: findAll()
+    Svc-->>C: articles
+    C-->>M: return value → ctx.body
+    M-->>S: onion unwinds (logger logs status)
+    S-->>U: 200 JSON
+```
+
+A `POST` adds one step: a policy in the chain checks auth and, if it fails, never calls `next()` — so the controller never runs and the request short-circuits with a 403.
 
 ## Project structure
 
