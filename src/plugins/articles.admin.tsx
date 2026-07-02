@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { InjectionZone } from '../client/injection.js';
+import { Table, TextInput } from '../design-system/index.js';
 import type { AdminPlugin } from '../client/types.js';
 
 const API = 'http://localhost:1337';
@@ -32,9 +33,10 @@ function ArticleCard({ id, title }: { id: number; title: string }) {
   );
 }
 
-/** List page — fetches all articles from the server on mount. */
+/** List page — fetches all articles, filters them, and shows them in a Table. */
 function ArticlesPage() {
   const [articles, setArticles] = useState<Article[] | null>(null);
+  const [filter, setFilter] = useState('');
 
   useEffect(() => {
     fetch(`${API}/articles`)
@@ -44,19 +46,36 @@ function ArticlesPage() {
 
   if (!articles) return <p>Loading…</p>;
 
+  const visible = articles.filter((a) => a.title.toLowerCase().includes(filter.toLowerCase()));
+
   return (
     <div>
       <h1>Articles</h1>
-      {/* Other plugins can add components (e.g. an Export button) right here,
-          without this file knowing about them. */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+
+      {/* All from the shared design-system. The filter input selects its text
+          on keyboard focus — the behaviour contributed upstream to Strapi. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+        <TextInput
+          placeholder="Filter by title…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        {/* Other plugins can add components (e.g. an Export button) right here,
+            without this file knowing about them. */}
         <InjectionZone name="articles.list.actions" />
       </div>
-      {articles.length ? (
-        articles.map((a) => <ArticleCard key={a.id} id={a.id} title={a.title} />)
-      ) : (
-        <p>No articles yet.</p>
-      )}
+
+      <Table<Article>
+        columns={[
+          { key: 'id', header: 'ID' },
+          {
+            key: 'title',
+            header: 'Title',
+            render: (a) => <Link to={`/articles/${a.id}`}>{a.title}</Link>,
+          },
+        ]}
+        rows={visible}
+      />
     </div>
   );
 }

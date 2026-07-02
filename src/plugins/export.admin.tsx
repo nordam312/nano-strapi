@@ -8,17 +8,18 @@
  * UI without either side knowing about the other: the essence of a platform.
  */
 
+import { Button } from '../design-system/index.js';
 import type { AdminPlugin } from '../client/types.js';
 
 /** The component this plugin contributes to the articles page. */
 function ExportButton() {
   return (
-    <button
-      type="button"
+    <Button
+      variant="secondary"
       onClick={() => alert('Exporting articles… (contributed by the export plugin)')}
     >
       ⬇ Export
-    </button>
+    </Button>
   );
 }
 
