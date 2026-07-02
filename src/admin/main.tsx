@@ -9,9 +9,12 @@ import { createRoot } from 'react-dom/client';
 
 import { ClientApp } from '../client/client-app.js';
 import articlesAdmin from '../plugins/articles.admin.js';
+import exportAdmin from '../plugins/export.admin.js';
 
 async function renderAdmin() {
-  const app = new ClientApp([articlesAdmin]);
+  // The export plugin injects UI into the articles page — order doesn't matter,
+  // they're decoupled. Add or remove a plugin here; nothing else changes.
+  const app = new ClientApp([articlesAdmin, exportAdmin]);
 
   await app.register(); // collect plugin menu/pages/components
   await app.bootstrap(); // wire up

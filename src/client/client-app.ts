@@ -16,6 +16,7 @@ import { createElement } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 import { Layout } from './Layout.js';
+import { AppContext } from './injection.js';
 import type { AdminPlugin, Component, MenuItem, Page } from './types.js';
 
 import type { ReactElement } from 'react';
@@ -29,6 +30,9 @@ export class ClientApp {
 
   /** Registered pages: path -> page component (like StrapiApp.router). */
   pages: { path: string; component: Page }[] = [];
+
+  /** Components injected into named zones by plugins (the extension registry). */
+  injectionZones: Record<string, Component[]> = {};
 
   private plugins: AdminPlugin[];
 
@@ -55,6 +59,16 @@ export class ClientApp {
 
   addPage(path: string, component: Page): void {
     this.pages.push({ path, component });
+  }
+
+  /** Inject a component into a named zone (used by plugins to extend pages). */
+  injectComponent(zone: string, component: Component): void {
+    (this.injectionZones[zone] ??= []).push(component);
+  }
+
+  /** Get all components injected into a zone (used by <InjectionZone/>). */
+  getInjectedComponents(zone: string): Component[] {
+    return this.injectionZones[zone] ?? [];
   }
 
   // --- lifecycle -----------------------------------------------------------
@@ -106,6 +120,13 @@ export class ClientApp {
       },
     ]);
 
-    return createElement(RouterProvider, { router });
+    // Provide the app via context so any component (e.g. InjectionZone) can
+    // read the registries, then render the router. Equivalent JSX:
+    //   <AppContext.Provider value={this}><RouterProvider router={router}/></AppContext.Provider>
+    return createElement(
+      AppContext.Provider,
+      { value: this },
+      createElement(RouterProvider, { router })
+    );
   }
 }

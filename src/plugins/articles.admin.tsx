@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { InjectionZone } from '../client/injection.js';
 import type { AdminPlugin } from '../client/types.js';
 
 const API = 'http://localhost:1337';
@@ -46,6 +47,11 @@ function ArticlesPage() {
   return (
     <div>
       <h1>Articles</h1>
+      {/* Other plugins can add components (e.g. an Export button) right here,
+          without this file knowing about them. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <InjectionZone name="articles.list.actions" />
+      </div>
       {articles.length ? (
         articles.map((a) => <ArticleCard key={a.id} id={a.id} title={a.title} />)
       ) : (
