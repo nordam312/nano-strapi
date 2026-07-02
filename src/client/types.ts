@@ -30,6 +30,17 @@ export interface AdminRoute {
 }
 
 /**
+ * A settings page — lives under the dedicated /settings area and shows a link
+ * in the settings sub-menu. Mirrors Strapi's addSettingsLink.
+ */
+export interface SettingsPage {
+  /** Path relative to /settings (e.g. "articles" → /settings/articles). */
+  path: string;
+  label: string;
+  component: Page;
+}
+
+/**
  * The admin (client) half of a plugin — declared as DATA, like the server half.
  * This is what a plugin registers into the ClientApp (our StrapiApp).
  */
@@ -37,6 +48,7 @@ export interface AdminPlugin {
   name: string;
   menu?: MenuItem[];
   routes?: AdminRoute[];
+  settings?: SettingsPage[];
   components?: Record<string, Component>;
   register?(app: ClientApp): void | Promise<void>;
   bootstrap?(app: ClientApp): void | Promise<void>;

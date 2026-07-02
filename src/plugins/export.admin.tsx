@@ -23,8 +23,21 @@ function ExportButton() {
   );
 }
 
+/** This plugin's settings page — shows under /settings/export. */
+function ExportSettingsPage() {
+  return (
+    <div>
+      <h2 style={{ marginTop: 0 }}>Export settings</h2>
+      <p>Configure how articles are exported.</p>
+      <Button onClick={() => alert('Export settings saved')}>Save</Button>
+    </div>
+  );
+}
+
 const exportAdmin: AdminPlugin = {
   name: 'export',
+
+  settings: [{ path: 'export', label: 'Export', component: ExportSettingsPage }],
 
   // During register, drop our button into the articles zone. The articles
   // plugin exposed <InjectionZone name="articles.list.actions" /> — we fill it.

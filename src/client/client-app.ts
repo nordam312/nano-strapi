@@ -16,8 +16,9 @@ import { createElement } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 import { Layout } from './Layout.js';
+import { SettingsLayout } from './SettingsLayout.js';
 import { AppContext } from './injection.js';
-import type { AdminPlugin, Component, MenuItem, Page } from './types.js';
+import type { AdminPlugin, Component, MenuItem, Page, SettingsPage } from './types.js';
 
 import type { ReactElement } from 'react';
 
@@ -33,6 +34,9 @@ export class ClientApp {
 
   /** Components injected into named zones by plugins (the extension registry). */
   injectionZones: Record<string, Component[]> = {};
+
+  /** Settings pages registered under /settings (like StrapiApp settings). */
+  settings: SettingsPage[] = [];
 
   private plugins: AdminPlugin[];
 
@@ -61,6 +65,11 @@ export class ClientApp {
     this.pages.push({ path, component });
   }
 
+  /** Register a settings page (shown under /settings with a sub-menu link). */
+  addSettingsPage(page: SettingsPage): void {
+    this.settings.push(page);
+  }
+
   /** Inject a component into a named zone (used by plugins to extend pages). */
   injectComponent(zone: string, component: Component): void {
     (this.injectionZones[zone] ??= []).push(component);
@@ -81,6 +90,7 @@ export class ClientApp {
         this.addComponent(name, component);
       }
       plugin.routes?.forEach((route) => this.addPage(route.path, route.component));
+      plugin.settings?.forEach((page) => this.addSettingsPage(page));
 
       await plugin.register?.(this);
     }
@@ -104,7 +114,10 @@ export class ClientApp {
     const router = createBrowserRouter([
       {
         path: '/',
-        element: createElement(Layout, { menu: this.menu }),
+        element: createElement(Layout, {
+          menu: this.menu,
+          hasSettings: this.settings.length > 0,
+        }),
         children: [
           // Redirect-ish default: send "/" to the first registered page.
           ...(this.pages.length
@@ -116,6 +129,23 @@ export class ClientApp {
             path: page.path.replace(/^\//, ''),
             element: createElement(page.component),
           })),
+          // The /settings area: its own layout (sub-menu) + one child per
+          // registered settings page.
+          ...(this.settings.length
+            ? [
+                {
+                  path: 'settings',
+                  element: createElement(SettingsLayout, { pages: this.settings }),
+                  children: [
+                    { index: true, element: createElement(this.settings[0].component) },
+                    ...this.settings.map((page) => ({
+                      path: page.path,
+                      element: createElement(page.component),
+                    })),
+                  ],
+                },
+              ]
+            : []),
         ],
       },
     ]);

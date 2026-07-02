@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { InjectionZone } from '../client/injection.js';
-import { Table, TextInput } from '../design-system/index.js';
+import { Button, Table, TextInput } from '../design-system/index.js';
 import type { AdminPlugin } from '../client/types.js';
 
 const API = 'http://localhost:1337';
@@ -103,6 +103,23 @@ function ArticleDetailPage() {
   );
 }
 
+/** A settings page for this plugin — shows under /settings/articles. */
+function ArticlesSettingsPage() {
+  const [author, setAuthor] = useState('Ada');
+
+  return (
+    <div>
+      <h2 style={{ marginTop: 0 }}>Articles settings</h2>
+      <label style={{ display: 'block', marginBottom: 8 }}>
+        Default author
+        <br />
+        <TextInput value={author} onChange={(e) => setAuthor(e.target.value)} />
+      </label>
+      <Button onClick={() => alert(`Saved default author: ${author}`)}>Save</Button>
+    </div>
+  );
+}
+
 const articlesAdmin: AdminPlugin = {
   name: 'articles',
   menu: [{ to: '/articles', label: 'Articles' }],
@@ -111,6 +128,7 @@ const articlesAdmin: AdminPlugin = {
     { path: '/articles', component: ArticlesPage },
     { path: '/articles/:id', component: ArticleDetailPage },
   ],
+  settings: [{ path: 'articles', label: 'Articles', component: ArticlesSettingsPage }],
 };
 
 export default articlesAdmin;

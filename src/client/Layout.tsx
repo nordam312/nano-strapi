@@ -8,7 +8,7 @@ import { Link, Outlet } from 'react-router-dom';
 
 import type { MenuItem } from './types.js';
 
-export function Layout({ menu }: { menu: MenuItem[] }) {
+export function Layout({ menu, hasSettings }: { menu: MenuItem[]; hasSettings?: boolean }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       <nav
@@ -28,6 +28,14 @@ export function Layout({ menu }: { menu: MenuItem[] }) {
             {item.label}
           </Link>
         ))}
+        {hasSettings && (
+          <Link
+            to="/settings"
+            style={{ color: '#c3c8ff', textDecoration: 'none', marginTop: 'auto' }}
+          >
+            ⚙ Settings
+          </Link>
+        )}
       </nav>
 
       <main style={{ flex: 1, padding: 32 }}>

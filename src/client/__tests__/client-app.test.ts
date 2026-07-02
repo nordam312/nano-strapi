@@ -41,4 +41,20 @@ describe('ClientApp', () => {
     // Unknown zones are simply empty (safe to render nothing).
     expect(app.getInjectedComponents('unknown.zone')).toEqual([]);
   });
+
+  it('collects settings pages from multiple plugins', async () => {
+    const a: AdminPlugin = {
+      name: 'a',
+      settings: [{ path: 'a', label: 'A', component: Noop }],
+    };
+    const b: AdminPlugin = {
+      name: 'b',
+      settings: [{ path: 'b', label: 'B', component: Noop }],
+    };
+
+    const app = new ClientApp([a, b]);
+    await app.register();
+
+    expect(app.settings.map((s) => s.path)).toEqual(['a', 'b']);
+  });
 });
